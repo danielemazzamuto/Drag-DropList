@@ -94,43 +94,76 @@ function autobind(_: any, _2: string, descriptor: PropertyDescriptor) {
   return adjustedDescriptor;
 }
 
-// ProjectList Class
-class ProjectList {
+// Component Base Class
+// we create a generic class to use the same structure for different components
+// abstract class to be extended by other classes and not to be instantiated
+abstract class Component<T extends HTMLElement, U extends HTMLElement> {
   templateElement: HTMLTemplateElement;
-  hostElement: HTMLDivElement; 
-  element: HTMLElement; // this is the section element
-  assignedProjects: Project[];
-
-  // we need to pass the type of the project list when we instantiate the class, as we have two different id css classes
-  constructor(private type: 'active' | 'finished'){
-    this.templateElement = document.getElementById('project-list')! as HTMLTemplateElement;
-    this.hostElement = document.getElementById('app')! as HTMLDivElement;
+  hostElement: T; 
+  element: U;
+  
+  constructor(templateId: string, hostElementId: string, insertAtStart: boolean, newElementId?: string){
+    this.templateElement = document.getElementById(templateId)! as HTMLTemplateElement;
+    this.hostElement = document.getElementById(hostElementId)! as T;
 
     // we need to import the content of the template element
     const importedNode = document.importNode(this.templateElement.content, true);
     // access the concrete element of the imported content and store it in the element property
-    this.element = importedNode.firstElementChild as HTMLElement; // we know that the first element is a form element
+    this.element = importedNode.firstElementChild as U; // we know that the first element is a form element
     // we need to set the id of the form element so we can apply styles to it
-    this.element.id = `${this.type}-projects`;
+    if(newElementId){
+      this.element.id = newElementId;
+    }
+
+    this.attach(insertAtStart);
+  }
+
+  private attach(insertAtStart: boolean) {
+    // beforend to add the element as the last child of the host element
+    this.hostElement.insertAdjacentElement(insertAtStart ? 'afterbegin' : 'beforeend', this.element);
+  }
+
+  // abstract methods to be implemented by the child classes
+  abstract configure(): void;
+  abstract renderContent(): void;
+}
+
+// ProjectList Class
+class ProjectList extends Component<HTMLDivElement, HTMLElement>{
+  assignedProjects: Project[];
+
+  // we need to pass the type of the project list when we instantiate the class, as we have two different id css classes
+  constructor(private type: 'active' | 'finished'){
+    // we call the super method to pass the parameters to the parent class
+    super('project-list', 'app', false, `${type}-projects`);
     this.assignedProjects = [];
-
-    // we need to add a listener to the projectState
-    projectState.addListener((projects: Project[]) => {
-      // we filter the projects based on the type of the project list
-      if(this.type === 'active'){
-        this.assignedProjects = projects.filter(prj => prj.status === ProjectStatus.Active);
-      } else {
-        this.assignedProjects = projects.filter(prj => prj.status === ProjectStatus.Finished);
-      }
-      this.renderProjects();
-    });
-
-    // we run the attach method to attach the imported content to the host element when the class is instantiated
-    this.attach();
+    // we need to listen to the state changes
+    this.configure();
+    // render the content when the class is instantiated
     this.renderContent();
   }
 
-  private renderProjects() {
+    // we need to implement the abstract methods from the parent class
+    configure() {
+      // we need to add a listener to the projectState
+      projectState.addListener((projects: Project[]) => {
+        // we filter the projects based on the type of the project list
+        if(this.type === 'active'){
+          this.assignedProjects = projects.filter(prj => prj.status === ProjectStatus.Active);
+        } else {
+          this.assignedProjects = projects.filter(prj => prj.status === ProjectStatus.Finished);
+        }
+        this.renderProjects();
+      });
+    }
+  
+     renderContent() {
+      const listId = `${this.type}-projects-list`;
+      this.element.querySelector('ul')!.id = listId;
+      this.element.querySelector('h2')!.textContent = `${this.type.toUpperCase()} PROJECTS`;
+    }
+
+   private renderProjects() {
     const listEl = document.getElementById(`${this.type}-projects-list`)! as HTMLUListElement;
     // we need to clear the list before rendering the projects to avoid duplicates
     listEl.innerHTML = '';
@@ -141,40 +174,19 @@ class ProjectList {
     }
   }
 
-  private renderContent() {
-    const listId = `${this.type}-projects-list`;
-    this.element.querySelector('ul')!.id = listId;
-    this.element.querySelector('h2')!.textContent = `${this.type.toUpperCase()} PROJECTS`;
-  }
-
-  private attach() {
-    // beforend to add the element as the last child of the host element
-    this.hostElement.insertAdjacentElement('beforeend', this.element);
-  }
 }
 
 
 // ProjectInput Class
-class ProjectInput {
-  templateElement: HTMLTemplateElement; 
-  hostElement: HTMLDivElement; 
-  element: HTMLFormElement; 
+class ProjectInput extends Component<HTMLDivElement, HTMLFormElement>{
   titleInputElement: HTMLInputElement;
   descriptionInputElement: HTMLInputElement;
   peopleInputElement: HTMLInputElement;
   buttonElement: HTMLButtonElement;
   
   constructor() {
-    // we need to get the template element and the host element
-    this.templateElement = document.getElementById('project-input')! as HTMLTemplateElement;
-    this.hostElement = document.getElementById('app')! as HTMLDivElement;
-
-    // we need to import the content of the template element
-    const importedNode = document.importNode(this.templateElement.content, true);
-    // access the concrete element of the imported content and store it in the element property
-    this.element = importedNode.firstElementChild as HTMLFormElement; // we know that the first element is a form element
-    // we need to set the id of the form element so we can apply styles to it
-    this.element.id = 'user-input';
+    // we call the super method to pass the parameters to the parent class
+    super('project-input', 'app', true, 'user-input');
     // we access the input elements of the form and store them in the corresponding properties
     this.titleInputElement = this.element.querySelector('#title') as HTMLInputElement;
     this.descriptionInputElement = this.element.querySelector('#description') as HTMLInputElement;
@@ -183,9 +195,12 @@ class ProjectInput {
 
     // run the configure method to bind the submitHandler to the form element
     this.configure();
+  }
 
-    // we run the attach method to attach the imported content to the host element when the class is instantiated
-    this.attach();
+  // we listen to the submit event of the form element and we bind the submitHandler to it
+  configure() {
+    // we need to bind the submitHandler to the submitHandler method
+    this.element.addEventListener('submit', this.submitHandler);
   }
 
   // we gather the user input
@@ -228,16 +243,7 @@ class ProjectInput {
     }
   }
 
-  // we listen to the submit event of the form element and we bind the submitHandler to it
-  private configure() {
-    // we need to bind the submitHandler to the submitHandler method
-    this.element.addEventListener('submit', this.submitHandler);
-  }
-
-  // we need to attach the imported content to the host element
-  private attach() {
-    this.hostElement.insertAdjacentElement('afterbegin', this.element);
-  }
+  renderContent(){}; // we don't need to render anything in this class
 
 }
 
