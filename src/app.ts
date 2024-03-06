@@ -5,19 +5,31 @@ class Project {
   constructor(public id: string, public title: string, public description: string, public people: number, public status: ProjectStatus) {}
 }
 
-// Project State Management
-type Listener = (items: Project[]) => void;
 
-class ProjectState {
+// Project State Management
+// we define a generic type for the listener function
+type Listener<T> = (items: T[]) => void;
+
+class State<T> {
   // This class variable holds the list of listeners
-  private listeners: Listener[] = [];
+  protected listeners: Listener<T>[] = [];
+  // This method adds a listener to the list of listeners
+  addListener(listenerFn: Listener<T>) {
+    this.listeners.push(listenerFn);
+  }
+}
+
+class ProjectState extends State<Project>{
+  
   // This class variable holds the list of projects
   private projects: Project[] = [];
   // This class variable holds the instance of the ProjectState class
   private static instance: ProjectState;
 
   // The constructor is private to prevent direct instantiation of the class
-  private constructor() {}
+  private constructor() {
+    super();
+  }
 
   // This static method provides access to the singleton instance of the class
   static getInstance() {
@@ -30,10 +42,7 @@ class ProjectState {
     return this.instance;
   }
 
-  // This method adds a listener to the list of listeners
-  addListener(listenerFn: Listener) {
-    this.listeners.push(listenerFn);
-  }
+  
 
   addProject(title: string, description: string, numOfPeople: number){
     const newProject = new Project(Math.random().toString(), title, description, numOfPeople, ProjectStatus.Active)
