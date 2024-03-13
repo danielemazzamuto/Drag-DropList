@@ -1,5 +1,22 @@
+// Drag & Drop Interfaces
+interface Draggable {
+  // DragEvent is a built-in type in TypeScript that represents the event object for drag events
+  dragStartHandler(event: DragEvent): void;
+  dragEndHandler(event: DragEvent): void;
+}
+// DragTarget represents the box where we can drop the draggable element
+interface DragTarget {
+  // dragOverHandler is called when the draggable element is over the drop zone - will pwemit the drop event
+  dragOverHandler(event: DragEvent): void;
+  // dropHandler is called when the draggable element is dropped in the drop zone
+  dropHandler(event: DragEvent): void;
+  // dragLeaveHandler is called when the draggable element leaves the drop zone
+  dragLeaveHandler(event: DragEvent): void;
+}
+
 // Project Type
 enum ProjectStatus {Active, Finished};
+
 // we use a class to define the structure of the project so we can initialize it with the new keyword
 class Project {
   constructor(public id: string, public title: string, public description: string, public people: number, public status: ProjectStatus) {}
@@ -137,8 +154,8 @@ abstract class Component<T extends HTMLElement, U extends HTMLElement> {
   abstract renderContent(): void;
 }
 
-// ProjectItem Class - to render a single project
-class ProjectItem extends Component<HTMLUListElement, HTMLLIElement>{
+// ProjectItem Class - to render a single project | we implement the Draggable interface
+class ProjectItem extends Component<HTMLUListElement, HTMLLIElement> implements Draggable {
   private project: Project;
 
   get persons() {
@@ -153,7 +170,22 @@ class ProjectItem extends Component<HTMLUListElement, HTMLLIElement>{
   this.renderContent();
  }
 
- configure(){}
+ @autobind // we added Draggable=true to the index.html file
+ dragStartHandler(event: DragEvent){
+  // we need to set the data that we want to transfer with the drag event (the id of the project)
+    event.dataTransfer!.setData('text/plain', this.project.id);
+    // we need to set the effect of the drag event (move)
+    event.dataTransfer!.effectAllowed = 'move';
+ }
+
+ dragEndHandler(_: DragEvent) {
+     console.log('DragEnd');
+ }
+
+ configure(){
+  this.element.addEventListener('dragstart', this.dragStartHandler);
+  this.element.addEventListener('dragend', this.dragEndHandler);
+ }
 
  // we render the single project by accessing the elements of the template and setting the values
  renderContent(){
@@ -165,7 +197,7 @@ class ProjectItem extends Component<HTMLUListElement, HTMLLIElement>{
 }
 
 // ProjectList Class
-class ProjectList extends Component<HTMLDivElement, HTMLElement>{
+class ProjectList extends Component<HTMLDivElement, HTMLElement> implements DragTarget {
   assignedProjects: Project[];
 
   // we need to pass the type of the project list when we instantiate the class, as we have two different id css classes
@@ -179,8 +211,33 @@ class ProjectList extends Component<HTMLDivElement, HTMLElement>{
     this.renderContent();
   }
 
+  @autobind
+  dragOverHandler(event: DragEvent) {
+    // we need to check if the data type of the dragged element is text/plain
+    if(event.dataTransfer && event.dataTransfer.types[0] === 'text/plain'){
+      // prvent the default behavior of the browser to avoid issues with the drop event
+      event.preventDefault();
+      const listEl = this.element.querySelector('ul')!;
+      listEl.classList.add('droppable');
+    }
+  }
+
+  dropHandler(event: DragEvent) {
+      console.log(event.dataTransfer!.getData('text/plain'));
+  }
+
+  @autobind
+  dragLeaveHandler(_: DragEvent) {
+    const listEl = this.element.querySelector('ul')!;
+    listEl.classList.remove('droppable');
+  }
+
     // we need to implement the abstract methods from the parent class
     configure() {
+      this.element.addEventListener('dragover', this.dragOverHandler);
+      this.element.addEventListener('dragleave', this.dragLeaveHandler);
+      this.element.addEventListener('drop', this.dropHandler);
+
       // we need to add a listener to the projectState
       projectState.addListener((projects: Project[]) => {
         // we filter the projects based on the type of the project list
