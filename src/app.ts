@@ -59,13 +59,24 @@ class ProjectState extends State<Project>{
     return this.instance;
   }
 
-  
-
   addProject(title: string, description: string, numOfPeople: number){
     const newProject = new Project(Math.random().toString(), title, description, numOfPeople, ProjectStatus.Active)
     this.projects.push(newProject);
     // we loop through the listeners and we call the listenerFn with the updated projects
-    // this will trigger the renderProjects method in the ProjectList class
+    // we need to update the listeners when we add or move a project
+    this.updateListeners();
+  }
+
+  moveProject(projectId: string, newStatus: ProjectStatus){
+    const project = this.projects.find(prj => prj.id === projectId);
+    if(project && project.status !== newStatus){
+      project.status = newStatus;
+      // we need to update the listeners when we add or move a project
+      this.updateListeners();
+    }
+  }
+  // we loop through the listeners and we call the listenerFn with the updated projects
+  private updateListeners(){
     for (const listenerFn of this.listeners){
       listenerFn(this.projects.slice())
     }
@@ -222,8 +233,10 @@ class ProjectList extends Component<HTMLDivElement, HTMLElement> implements Drag
     }
   }
 
+  @autobind
   dropHandler(event: DragEvent) {
-      console.log(event.dataTransfer!.getData('text/plain'));
+      const prjId = event.dataTransfer!.getData('text/plain');
+      projectState.moveProject(prjId, this.type === 'active' ? ProjectStatus.Active : ProjectStatus.Finished);
   }
 
   @autobind
